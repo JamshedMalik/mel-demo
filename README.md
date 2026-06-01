@@ -1,48 +1,100 @@
-# MEL Platform Engineering Demo
+# Machine Edge Layer (MEL) — Platform Engineering Demo
 
-A hands-on demo of **Machine Edge Layer (MEL)** platform engineering — simulating a factory machine sending sensor data to a FastAPI edge service running on k3s, monitored by Prometheus and Grafana.
+A lightweight simulation of a Machine Edge Layer, demonstrating Platform Engineering
+concepts on a single-node k3s cluster. Covers Kubernetes, Helm, observability with
+Prometheus + Grafana, and edge computing architecture.
 
 ---
 
-## What This Demo Does
+## What This Project Does
 
-A Python **Sensor Simulator** mimics a factory machine generating temperature, vibration, and status readings. It POSTs that data every 5 seconds to a **FastAPI Edge Service** running in Kubernetes (k3s). The edge service exposes Prometheus metrics, which are scraped and visualized in **Grafana**.
+A Python **Sensor Simulator** mimics a factory machine, generating temperature, vibration,
+and status readings every **5 seconds**. It sends this data to a **FastAPI Edge Service**
+running inside Kubernetes (k3s). The edge service exposes metrics in Prometheus format,
+which are scraped automatically and visualized on a **Grafana dashboard**.
+
+**In one sentence:** Fake machine → sends data → API stores it → Prometheus collects it → Grafana shows it.
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        k3s Cluster                              │
-│                                                                 │
-│   Namespace: mel-demo                Namespace: monitoring      │
-│  ┌──────────────────────────┐       ┌───────────────────────┐  │
-│  │  ┌────────────────────┐  │       │  ┌─────────────────┐  │  │
-│  │  │  Sensor Simulator  │  │       │  │   Prometheus    │  │  │
-│  │  │  (Python / Pod)    │  │  ┌───►│  │  :30090         │  │  │
-│  │  └────────┬───────────┘  │  │   │  └────────┬────────┘  │  │
-│  │           │ POST /sensor-data │  │   │           │ query     │  │
-│  │           ▼              │  │   │           ▼           │  │
-│  │  ┌────────────────────┐  │  │   │  ┌─────────────────┐  │  │
-│  │  │   Edge Service     │  │  │   │  │     Grafana     │  │  │
-│  │  │   FastAPI :8000    ├──┼──┘   │  │  :30300         │  │  │
-│  │  │   /metrics         │  │scrape│  └─────────────────┘  │  │
-│  │  │   NodePort :30080  │  │      └───────────────────────┘  │
-│  │  └────────────────────┘  │                                  │
-│  └──────────────────────────┘                                   │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                         k3s Cluster (Single Node)                    │
+│                                                                      │
+│   Namespace: mel-demo                    Namespace: monitoring        │
+│  ┌────────────────────────────┐         ┌─────────────────────────┐  │
+│  │                            │         │                         │  │
+│  │  ┌──────────────────────┐  │         │  ┌───────────────────┐  │  │
+│  │  │   Sensor Simulator   │  │         │  │    Prometheus     │  │  │
+│  │  │   (Python Pod)       │  │         │  │    :30090         │  │  │
+│  │  └──────────┬───────────┘  │    ┌───►│  │                   │  │  │
+│  │             │               │    │    │  └─────────┬─────────┘  │  │
+│  │    POST /sensor-data        │    │    │            │            │  │
+│  │        every 5s             │    │    │      PromQL queries     │  │
+│  │             │               │    │    │            │            │  │
+│  │             ▼               │    │    │            ▼            │  │
+│  │  ┌──────────────────────┐  │    │    │  ┌───────────────────┐  │  │
+│  │  │    Edge Service      │  │    │    │  │     Grafana       │  │  │
+│  │  │    FastAPI :8000     ├──┼────┘    │  │     :30300        │  │  │
+│  │  │                      │  │ scrapes │  │                   │  │  │
+│  │  │  /health             │  │ /metrics│  │  8 dashboard      │  │  │
+│  │  │  /status             │  │ every   │  │  panels showing   │  │  │
+│  │  │  /sensor-data        │  │ 10s     │  │  real-time data   │  │  │
+│  │  │  /metrics            │  │         │  │                   │  │  │
+│  │  │  NodePort :30080     │  │         │  └───────────────────┘  │  │
+│  │  └──────────────────────┘  │         │                         │  │
+│  │                            │         │                         │  │
+│  └────────────────────────────┘         └─────────────────────────┘  │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Data Flow
+## Data Flow (Step by Step)
 
-1. **Simulator generates data** — random temperature (60–100°C), vibration (0–10 mm/s), and machine status (0=ERROR, 1=WARNING, 2=RUNNING)
-2. **POSTs to edge service** — HTTP POST to `http://edge-service:8000/sensor-data` every 5 seconds
-3. **Edge service updates Prometheus metrics** — increments counters, sets gauges, records histogram observations
-4. **Prometheus scrapes `/metrics`** — every 10 seconds via ServiceMonitor CRD
-5. **Grafana visualizes** — dashboards query Prometheus for real-time and historical views
+```
+Step 1          Step 2               Step 3              Step 4            Step 5
+────────        ─────────            ─────────           ─────────         ─────────
+Simulator       HTTP POST            Edge Service        Prometheus        Grafana
+generates  ───► to /sensor-data ───► updates metrics ──► scrapes      ──► displays
+fake data       every 5 seconds      (Gauges,            /metrics         dashboards
+(temp,                               Counters,           every 10s        (8 panels)
+vibration,                           Histograms)
+status)
+```
+
+**Step 1 — Sensor Simulator** generates realistic data using sine waves + random noise:
+- Temperature oscillates around 65°C (range ~55–85°C)
+- Vibration oscillates around 2.5 mm/s
+- 5% chance of a random anomaly (temperature spike) per reading
+
+**Step 2 — HTTP POST** sends JSON to Edge Service:
+```json
+{"temperature": 72.13, "vibration": 3.75, "status": "RUNNING"}
+```
+
+**Step 3 — Edge Service** receives data and updates Prometheus metrics:
+- Sets `machine_temperature_celsius` gauge to current value
+- Sets `machine_vibration_mm_s` gauge to current value
+- Sets `machine_status` gauge (0=ERROR, 1=WARNING, 2=RUNNING)
+- Increments `sensor_readings_total` counter
+- Records processing time in `sensor_processing_seconds` histogram
+
+**Step 4 — Prometheus** scrapes the `/metrics` endpoint every 10 seconds,
+stores all values as time-series data.
+
+**Step 5 — Grafana** queries Prometheus using PromQL and displays:
+- Temperature line chart with threshold colors (green/yellow/red)
+- Vibration line chart
+- Machine status indicator (RUNNING / WARNING / ERROR)
+- Temperature gauge (0–120°C range)
+- Total sensor readings counter
+- HTTP requests per second by endpoint
+- P95 processing latency
+- Readings per minute
 
 ---
 
@@ -50,171 +102,196 @@ A Python **Sensor Simulator** mimics a factory machine generating temperature, v
 
 ```
 mel-demo/
+├── README.md                              ← You are here
+│
 ├── apps/
 │   ├── edge-service/
-│   │   ├── main.py              # FastAPI app with Prometheus instrumentation
-│   │   ├── Dockerfile           # Multi-stage build for edge service
-│   │   └── requirements.txt     # FastAPI, uvicorn, prometheus-client
+│   │   ├── main.py                        ← FastAPI app (4 endpoints, 6 Prometheus metrics)
+│   │   ├── Dockerfile                     ← python:3.11-slim based image
+│   │   └── requirements.txt               ← fastapi, uvicorn, prometheus-client
+│   │
 │   └── sensor-simulator/
-│       ├── simulator.py         # Generates and POSTs fake sensor readings
-│       ├── Dockerfile           # Lightweight Python image
-│       └── requirements.txt     # requests library
+│       ├── simulator.py                   ← Generates fake sensor data in a loop
+│       ├── Dockerfile                     ← python:3.11-slim based image
+│       └── requirements.txt               ← requests
+│
 ├── helm/
 │   └── mel-platform/
-│       ├── Chart.yaml           # Helm chart metadata
-│       ├── values.yaml          # Configurable defaults (image tags, replicas, ports)
+│       ├── Chart.yaml                     ← Chart metadata (name, version)
+│       ├── values.yaml                    ← All configurable values in one place
 │       └── templates/
-│           ├── _helpers.tpl     # Reusable name/label helpers
-│           ├── configmap.yaml   # Injects EDGE_SERVICE_URL into simulator pod
-│           ├── edge-service-deployment.yaml    # Deployment with probes + limits
-│           ├── edge-service-service.yaml       # NodePort service on 30080
-│           ├── sensor-simulator-deployment.yaml # Simulator deployment
-│           └── servicemonitor.yaml             # Tells Prometheus to scrape edge service
+│           ├── _helpers.tpl               ← Reusable label templates
+│           ├── configmap.yaml             ← EDGE_SERVICE_URL + INTERVAL config
+│           ├── edge-service-deployment.yaml     ← Deployment with probes + resource limits
+│           ├── edge-service-service.yaml        ← NodePort service (30080 → 8000)
+│           ├── sensor-simulator-deployment.yaml ← Conditional deployment (toggleable)
+│           └── servicemonitor.yaml              ← Prometheus scrape target auto-discovery
+│
 ├── monitoring/
-│   ├── prometheus-values.yaml   # Helm values for kube-prometheus-stack
-│   ├── grafana-values.yaml      # Grafana admin credentials, NodePort config
-│   └── grafana-dashboard.json   # Pre-built dashboard for sensor metrics
-├── docs/
-│   └── architecture.md          # Deep-dive into K8s concepts and design
+│   ├── prometheus-values.yaml             ← Lightweight Prometheus Helm config
+│   ├── grafana-values.yaml                ← Grafana Helm config with datasource
+│   └── grafana-dashboard.json             ← Pre-built 8-panel dashboard (importable)
+│
 ├── scripts/
-│   └── cleanup.sh               # Tears down everything cleanly
-└── README.md
+│   └── cleanup.sh                         ← Full teardown: app → monitoring → k3s → images
+│
+└── docs/
+    └── architecture.md                    ← Deep dive into K8s concepts and design decisions
 ```
 
 ---
 
 ## Technology Stack
 
-| Technology | Version | Role |
-|---|---|---|
-| k3s | v1.28+ | Lightweight Kubernetes for edge/single-node |
-| FastAPI | 0.104+ | Edge service HTTP API |
-| prometheus-client | 0.19+ | Exposes `/metrics` from Python |
-| Helm 3 | v3.13+ | Package and deploy K8s manifests |
-| Prometheus | 2.47+ | Metrics scraping and storage |
-| Grafana | 10.x | Metrics visualization and dashboards |
+| Component | Technology | Why This Choice |
+|-----------|-----------|-----------------|
+| Kubernetes | **k3s** | Lightweight (~512MB RAM), single binary, designed for edge. Same kubectl API as full K8s. |
+| Application | **Python FastAPI** | Fast to develop, built-in OpenAPI docs, native Prometheus integration via prometheus-client. |
+| Metrics Library | **prometheus-client** | Creates metrics in Prometheus text format. Zero-config, 3 lines to add a metric. |
+| Deployment | **Helm 3** | Deployment-as-code. One values.yaml configures everything. Same pattern ArgoCD/GitOps uses. |
+| Monitoring | **Prometheus** | Pull-based metrics (firewall-friendly for edge). De facto Kubernetes monitoring standard. |
+| Dashboards | **Grafana** | Rich visualization, auto-refresh, threshold alerting. Queries Prometheus via PromQL. |
 
 ---
 
 ## Design Decisions
 
-### Why k3s?
-Edge-native Kubernetes distribution. Runs in **512MB RAM**, single binary, ships with containerd. Perfect for factory-floor hardware, Raspberry Pi, or demo VMs. Same `kubectl` API as full K8s.
+### Why k3s instead of full Kubernetes?
+k3s is purpose-built for edge and IoT. It's a **single binary (~60MB)**, uses **~512MB RAM**,
+and ships with containerd. This is exactly what you'd run on a real factory machine or
+industrial edge device. Full K8s would need 2–4GB RAM — unacceptable at the edge.
 
 ### Why FastAPI?
-Lightweight ASGI framework with **native async support** and automatic OpenAPI docs. `prometheus-client` integrates in 3 lines. Starts in under 1 second — critical for edge responsiveness.
+Lightweight ASGI framework that starts in under 1 second. The `prometheus-client` library
+integrates in 3 lines of code — no middleware or adapters needed. Built-in `/docs` endpoint
+gives you free Swagger UI for testing.
 
-### Why Helm?
-**Deployment-as-code.** A single `helm install` with `values.yaml` overrides deploys the full platform. Enables environment-specific configs (dev/staging/prod) without duplicating manifests. The pattern that GitOps tools like ArgoCD consume.
+### Why Helm instead of plain kubectl apply?
+Helm makes deployments **configurable and reproducible**. The same chart deploys to dev,
+staging, and production by swapping `values.yaml`. Components are toggleable:
+set `sensorSimulator.enabled: false` and the simulator disappears. This is how real
+platform teams package their services.
 
 ### Why Prometheus + Grafana?
-**Industry standard** for Kubernetes observability. Prometheus's pull model is firewall-friendly (edge service doesn't need outbound internet). Grafana's PromQL support enables powerful dashboards with zero code.
+Industry standard for Kubernetes observability. Prometheus's **pull model** means the edge
+service doesn't need outbound internet access — Prometheus reaches in, not out. This is
+critical for factory environments behind firewalls.
 
-### Why NodePort?
-**Single-node edge deployment** — no external load balancer needed. NodePort exposes services directly on the host IP, which is how you'd access services on an air-gapped factory machine. In a multi-node cluster you'd use LoadBalancer or Ingress.
+### Why NodePort instead of Ingress?
+On a single-node edge deployment, NodePort is appropriate and honest. Adding Ingress
+(Traefik, certs, DNS) adds complexity without value for a single service. In production
+with multiple services, you'd add an Ingress controller.
+
+### Why images built locally instead of a registry?
+With `imagePullPolicy: Never`, k3s uses images already on the node. No registry
+infrastructure needed. On a real edge device, you'd pre-load images during provisioning.
 
 ---
 
 ## Kubernetes Concepts Demonstrated
 
-| Concept | Where Used | What It Shows |
-|---|---|---|
-| Deployment | edge-service, sensor-simulator | Self-healing pods, rolling updates |
-| Service (NodePort) | edge-service-service.yaml | Exposes pod to host network |
-| ConfigMap | mel-config | Injects config into pods as env vars |
-| Namespace | mel-demo, monitoring | Resource isolation between app and infra |
-| Labels & Selectors | All resources | How Services find Pods |
-| Liveness Probe | edge-service | K8s restarts pod if app hangs |
-| Readiness Probe | edge-service | K8s holds traffic until app is ready |
-| Resource Requests/Limits | Both deployments | Prevents noisy-neighbour resource exhaustion |
-| Helm Values/Templates | helm/mel-platform/ | Parameterised, reusable manifests |
+| Concept | Where | What It Proves |
+|---------|-------|----------------|
+| **Deployment** | edge-service, sensor-simulator | Declarative pod management. Pod dies → Deployment recreates it. |
+| **Service (NodePort)** | edge-service-service.yaml | Makes pods reachable from outside the cluster on port 30080. |
+| **ConfigMap** | mel-config | Configuration injected as env vars. Change config without rebuilding images. |
+| **Namespace** | mel-demo, monitoring | Logical isolation. `kubectl delete ns mel-demo` cleanly removes everything. |
+| **Labels & Selectors** | All resources | How K8s connects Services to Pods and Prometheus to scrape targets. |
+| **Liveness Probe** | edge-service → GET /health | If /health fails 3x, K8s kills and restarts the pod. Self-healing. |
+| **Readiness Probe** | edge-service → GET /health | Holds traffic until the pod is ready. Prevents routing to a starting container. |
+| **Resource Requests/Limits** | All deployments | Requests = guaranteed minimum. Limits = hard cap. Critical on resource-constrained edge. |
+| **Helm Values** | values.yaml → templates/ | One config file drives all Kubernetes manifests. Environment-specific overrides. |
+| **Conditional Templates** | sensor-simulator | `{{- if .Values.sensorSimulator.enabled }}` — platform teams provide toggleable components. |
 
 ---
 
-## Prometheus Metric Types
+## Prometheus Metrics Reference
 
-| Type | Metric Name | Description |
-|---|---|---|
-| Counter | `edge_http_requests_total` | Total HTTP requests received by edge service |
-| Counter | `sensor_readings_total` | Total sensor data points processed |
-| Gauge | `machine_temperature_celsius` | Current machine temperature reading |
-| Gauge | `machine_vibration_mm_s` | Current vibration level in mm/s |
-| Gauge | `machine_status` | Machine state: 0=ERROR, 1=WARNING, 2=RUNNING |
-| Histogram | `sensor_processing_seconds` | Time taken to process each sensor reading |
+| Type | Metric | What It Measures |
+|------|--------|-----------------|
+| **Counter** | `edge_http_requests_total` | Total HTTP requests, labeled by method and endpoint. Only goes up. |
+| **Counter** | `sensor_readings_total` | Total sensor readings received from the simulator. |
+| **Gauge** | `machine_temperature_celsius` | Current machine temperature. Goes up and down. |
+| **Gauge** | `machine_vibration_mm_s` | Current vibration level in mm/s. |
+| **Gauge** | `machine_status` | Current status: 0=ERROR, 1=WARNING, 2=RUNNING. |
+| **Histogram** | `sensor_processing_seconds` | Processing time distribution. Enables P50/P95/P99 latency calculation. |
+
+**Why these types matter:**
+- **Counter** → use `rate()` in PromQL to get requests/second
+- **Gauge** → direct value, shows current state
+- **Histogram** → use `histogram_quantile()` to get percentile latencies
 
 ---
 
 ## Quick Commands
 
-### Check running pods
 ```bash
-kubectl get pods -n mel-demo
-kubectl get pods -n monitoring
-```
+# ── Cluster Status ──
+kubectl get nodes                    # Is the node Ready?
+kubectl get pods -A                  # Everything running across all namespaces
 
-### View edge service logs
-```bash
-kubectl logs -n mel-demo deployment/edge-service -f
-```
+# ── Application ──
+kubectl get pods -n mel-demo         # Are edge-service and simulator running?
+kubectl logs -f deploy/edge-service -n mel-demo       # Live API logs
+kubectl logs -f deploy/sensor-simulator -n mel-demo   # Live simulator logs
+kubectl describe pod -l app=edge-service -n mel-demo  # Detailed pod info
 
-### View simulator logs
-```bash
-kubectl logs -n mel-demo deployment/sensor-simulator -f
-```
+# ── Monitoring ──
+kubectl get pods -n monitoring       # Prometheus and Grafana running?
 
-### Hit the API manually
-```bash
-curl http://localhost:30080/health
-curl http://localhost:30080/status
-curl http://localhost:30080/metrics
+# ── Test API Endpoints ──
+curl http://localhost:30080/health   # Should return {"status": "healthy", ...}
+curl http://localhost:30080/status   # Latest sensor reading
+curl http://localhost:30080/metrics  # Raw Prometheus metrics
+
+# Post a manual reading:
 curl -X POST http://localhost:30080/sensor-data \
   -H "Content-Type: application/json" \
-  -d '{"temperature": 75.5, "vibration": 3.2, "status": "RUNNING"}'
+  -d '{"temperature": 95.0, "vibration": 8.5, "status": "ERROR"}'
+
+# ── Helm ──
+helm list -A                                          # All releases
+helm upgrade mel helm/mel-platform -n mel-demo        # Apply changes
+helm rollback mel 1 -n mel-demo                       # Rollback to revision 1
+helm template mel helm/mel-platform -n mel-demo       # Render without installing
 ```
 
-### Helm operations
-```bash
-# See deployed releases
-helm list -A
+---
 
-# Upgrade with new values
-helm upgrade mel ./helm/mel-platform -n mel-demo
+## Access the UIs
 
-# Render templates without installing
-helm template mel ./helm/mel-platform -n mel-demo
-```
-
-### Access UIs
 | Service | URL | Credentials |
-|---|---|---|
-| Grafana | http://\<NODE-IP\>:30300 | admin / mel-demo-2026 |
-| Prometheus | http://\<NODE-IP\>:30090 | — |
-| Edge Service API | http://\<NODE-IP\>:30080 | — |
-| API Docs (Swagger) | http://\<NODE-IP\>:30080/docs | — |
+|---------|-----|-------------|
+| **Grafana** | `http://<VPS-IP>:30300` | admin / mel-demo-2026 |
+| **Prometheus** | `http://<VPS-IP>:30090` | — |
+| **Edge Service API** | `http://<VPS-IP>:30080` | — |
+| **Swagger Docs** | `http://<VPS-IP>:30080/docs` | — |
 
 ---
 
 ## Cleanup
 
-To tear down everything:
+Remove everything and restore the VPS to its pre-demo state:
+
 ```bash
 chmod +x scripts/cleanup.sh
 ./scripts/cleanup.sh
 ```
 
-See [scripts/cleanup.sh](scripts/cleanup.sh) for what it does step by step.
+This removes: Helm releases → Kubernetes namespaces → k3s → Helm binary → Docker images.
+Your existing services (n8n, etc.) are not touched.
 
 ---
 
 ## What Would Change for Production
 
-| Concern | Demo Approach | Production Approach |
-|---|---|---|
-| Security | No auth | RBAC, Network Policies, mTLS via service mesh |
-| High Availability | Single replica | Multi-replica Deployments, multi-node cluster |
-| Storage | Ephemeral | PersistentVolumeClaims for Prometheus TSDB |
-| CI/CD | Manual `helm install` | GitHub Actions / GitLab CI pipeline |
-| GitOps | None | ArgoCD syncing from Git to cluster |
-| Alerting | None | Alertmanager rules → PagerDuty / Slack |
-| Logging | `kubectl logs` | Loki + Promtail stack, or EFK |
-| Service Mesh | None | Istio / Linkerd for observability + mTLS |
+| Concern | This Demo | Production |
+|---------|-----------|------------|
+| **Security** | No auth, no RBAC | RBAC, Network Policies, Sealed Secrets, TLS |
+| **High Availability** | Single node, single replica | Multi-node cluster, pod anti-affinity, 3+ replicas |
+| **Storage** | In-memory, ephemeral | PersistentVolumeClaims for Prometheus TSDB |
+| **CI/CD** | Manual `helm install` | GitHub Actions → build → push → deploy pipeline |
+| **GitOps** | Manual deployment | ArgoCD watching Git repo, auto-sync on push |
+| **Alerting** | None | Alertmanager → PagerDuty / Slack / email |
+| **Logging** | `kubectl logs` only | Loki + Promtail, or EFK stack |
+| **Service Mesh** | None | Istio / Linkerd for mTLS and traffic management |
