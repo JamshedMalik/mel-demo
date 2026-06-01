@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-service
+  labels:
+    {{- include "mel-platform.edgeServiceLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.edgeService.replicaCount }}
+  selector:
+    matchLabels:
+      app: edge-service
+  template:
+    metadata:
+      labels:
+        {{- include "mel-platform.edgeServiceLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: edge-service
+          image: "{{ .Values.edgeService.image.repository }}:{{ .Values.edgeService.image.tag }}"
+          imagePullPolicy: {{ .Values.edgeService.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.edgeService.port }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.edgeService.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.edgeService.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: {{ .Values.edgeService.resources.requests.cpu }}
+              memory: {{ .Values.edgeService.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.edgeService.resources.limits.cpu }}
+              memory: {{ .Values.edgeService.resources.limits.memory }}

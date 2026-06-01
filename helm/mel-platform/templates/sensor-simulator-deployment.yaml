@@ -1,0 +1,32 @@
+{{- if .Values.sensorSimulator.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sensor-simulator
+  labels:
+    {{- include "mel-platform.sensorSimulatorLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sensor-simulator
+  template:
+    metadata:
+      labels:
+        {{- include "mel-platform.sensorSimulatorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: sensor-simulator
+          image: "{{ .Values.sensorSimulator.image.repository }}:{{ .Values.sensorSimulator.image.tag }}"
+          imagePullPolicy: {{ .Values.sensorSimulator.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: mel-config
+          resources:
+            requests:
+              cpu: {{ .Values.sensorSimulator.resources.requests.cpu }}
+              memory: {{ .Values.sensorSimulator.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.sensorSimulator.resources.limits.cpu }}
+              memory: {{ .Values.sensorSimulator.resources.limits.memory }}
+{{- end }}

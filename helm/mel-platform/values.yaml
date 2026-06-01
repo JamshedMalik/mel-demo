@@ -1,0 +1,43 @@
+# ──────────────────────────────────────────────
+# MEL Platform - Configuration Values
+# 
+# This is the SINGLE place to configure everything.
+# Interview point: "All configuration is centralized here.
+# Different environments (dev/staging/prod) just override
+# these values — the templates stay the same."
+# ──────────────────────────────────────────────
+
+edgeService:
+  replicaCount: 1
+  image:
+    repository: mel-edge-service
+    tag: latest
+    pullPolicy: Never    # We build images locally on k3s
+  port: 8000
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+sensorSimulator:
+  enabled: true
+  image:
+    repository: mel-sensor-simulator
+    tag: latest
+    pullPolicy: Never
+  interval: "5"          # seconds between readings
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 10s

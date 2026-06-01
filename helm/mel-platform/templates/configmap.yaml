@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mel-config
+  labels:
+    {{- include "mel-platform.labels" . | nindent 4 }}
+data:
+  EDGE_SERVICE_URL: "http://edge-service:8000"
+  INTERVAL: {{ .Values.sensorSimulator.interval | quote }}

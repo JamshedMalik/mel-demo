@@ -1,0 +1,37 @@
+server:
+  image:
+    repository: prom/prometheus
+    tag: v3.12.0
+  persistentVolume:
+    enabled: false
+  service:
+    type: NodePort
+    nodePort: 30090
+  retention: 2h
+  resources:
+    requests:
+      memory: 200Mi
+    limits:
+      memory: 400Mi
+
+extraScrapeConfigs: |
+  - job_name: 'mel-edge-service'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['edge-service.mel-demo.svc.cluster.local:8000']
+
+configmapReload:
+  prometheus:
+    enabled: false
+
+alertmanager:
+  enabled: false
+
+prometheus-pushgateway:
+  enabled: false
+
+kube-state-metrics:
+  enabled: false
+
+prometheus-node-exporter:
+  enabled: false

@@ -1,0 +1,17 @@
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: edge-service-monitor
+  labels:
+    {{- include "mel-platform.edgeServiceLabels" . | nindent 4 }}
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: edge-service
+  endpoints:
+    - port: "{{ .Values.edgeService.port }}"
+      path: /metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+{{- end }}

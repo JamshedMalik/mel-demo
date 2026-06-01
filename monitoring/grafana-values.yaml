@@ -1,0 +1,20 @@
+adminPassword: mel-demo-2026
+
+service:
+  type: NodePort
+  nodePort: 30300
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-server.monitoring.svc.cluster.local
+        isDefault: true
+
+resources:
+  requests:
+    memory: 100Mi
+  limits:
+    memory: 200Mi
