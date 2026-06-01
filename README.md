@@ -6,7 +6,7 @@ A hands-on demo of **Machine Edge Layer (MEL)** platform engineering — simulat
 
 ## What This Demo Does
 
-A Python **Sensor Simulator** mimics a factory machine generating temperature, vibration, and status readings. It POSTs that data every 2 seconds to a **FastAPI Edge Service** running in Kubernetes (k3s). The edge service exposes Prometheus metrics, which are scraped and visualized in **Grafana**.
+A Python **Sensor Simulator** mimics a factory machine generating temperature, vibration, and status readings. It POSTs that data every 5 seconds to a **FastAPI Edge Service** running in Kubernetes (k3s). The edge service exposes Prometheus metrics, which are scraped and visualized in **Grafana**.
 
 ---
 
@@ -22,7 +22,7 @@ A Python **Sensor Simulator** mimics a factory machine generating temperature, v
 │  │  │  Sensor Simulator  │  │       │  │   Prometheus    │  │  │
 │  │  │  (Python / Pod)    │  │  ┌───►│  │  :30090         │  │  │
 │  │  └────────┬───────────┘  │  │   │  └────────┬────────┘  │  │
-│  │           │ POST /data   │  │   │           │ query     │  │
+│  │           │ POST /sensor-data │  │   │           │ query     │  │
 │  │           ▼              │  │   │           ▼           │  │
 │  │  ┌────────────────────┐  │  │   │  ┌─────────────────┐  │  │
 │  │  │   Edge Service     │  │  │   │  │     Grafana     │  │  │
